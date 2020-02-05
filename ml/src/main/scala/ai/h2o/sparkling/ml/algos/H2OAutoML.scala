@@ -23,6 +23,7 @@ import ai.h2o.sparkling.ml.params._
 import ai.h2o.sparkling.ml.utils.H2OParamsReadable
 import hex.ScoreKeeper
 import org.apache.spark.annotation.DeveloperApi
+import org.apache.spark.h2o.Frame
 import org.apache.spark.ml.Estimator
 import org.apache.spark.ml.param._
 import org.apache.spark.ml.util._
@@ -52,8 +53,8 @@ class H2OAutoML(override val uid: String) extends Estimator[H2OMOJOModel]
     val spec = new AutoMLBuildSpec
 
     val (trainKey, validKey, internalFeatureCols) = prepareDatasetForFitting(dataset)
-    spec.input_spec.training_frame = DKV.getGet(trainKey)
-    spec.input_spec.validation_frame = validKey.map(DKV.getGet).orNull
+    spec.input_spec.training_frame = DKV.getGet[Frame](trainKey)._key
+    spec.input_spec.validation_frame = validKey.map(DKV.getGet[Frame](_)._key).orNull
 
     val trainFrame = spec.input_spec.training_frame.get()
     if (getAllStringColumnsToCategorical()) {

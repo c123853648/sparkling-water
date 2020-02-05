@@ -45,8 +45,8 @@ abstract class H2OAlgorithm[B <: H2OBaseModelBuilder : ClassTag, M <: H2OBaseMod
     updateH2OParams()
 
     val (trainKey, validKey, internalFeatureCols) = prepareDatasetForFitting(dataset)
-    parameters._train = DKV.getGet(trainKey)
-    parameters._valid = validKey.map(DKV.getGet).orNull
+    parameters._train = DKV.getGet[Frame](trainKey)._key
+    parameters._valid = validKey.map(DKV.getGet[Frame](_)._key).orNull
 
     val trainFrame = parameters._train.get()
     preProcessBeforeFit(trainFrame)

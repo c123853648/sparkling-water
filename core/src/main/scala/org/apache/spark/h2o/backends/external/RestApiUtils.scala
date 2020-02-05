@@ -56,7 +56,7 @@ trait RestApiUtils extends RestCommunication {
 
   def lockCloud(conf: H2OConf): Unit = {
     val endpoint = getClusterEndpoint(conf)
-    update[CloudLockV3](endpoint, "/3/CloudLock", conf)
+    update[CloudLockV3](endpoint, "/3/CloudLock", conf, Map("reason" -> "Locked after Sparkling Water cloud up."))
   }
 
   def shutdownCluster(conf: H2OConf): Unit = {
@@ -127,6 +127,7 @@ trait RestApiUtils extends RestCommunication {
       endpoint,
       s"/3/Frames/$frameId/summary?row_count=0",
       conf,
+      Map.empty,
       Seq((classOf[FrameV3], "chunk_summary"), (classOf[FrameV3], "distribution_summary")))
     val frame = frames.frames(0)
     val frameChunks = query[FrameChunksV3](endpoint, s"/3/FrameChunks/$frameId", conf)

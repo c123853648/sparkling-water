@@ -71,8 +71,8 @@ class H2OGridSearch(override val uid: String) extends Estimator[H2OMOJOModel]
     val hyperParams = processHyperParams(algoParams, getHyperParameters())
 
     val (trainKey, validKey, internalFeatureCols) = prepareDatasetForFitting(dataset)
-    algoParams._train = DKV.getGet(trainKey)
-    algoParams._valid = validKey.map(DKV.getGet).orNull
+    algoParams._train = DKV.getGet[Frame](trainKey)._key
+    algoParams._valid = validKey.map(DKV.getGet[Frame](_)._key).orNull
 
     algoParams._nfolds = getNfolds()
     algoParams._fold_column = getFoldCol()

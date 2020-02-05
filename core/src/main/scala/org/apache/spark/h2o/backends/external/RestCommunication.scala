@@ -18,62 +18,66 @@
 package org.apache.spark.h2o.backends.external
 
 import java.io.{BufferedOutputStream, File, FileOutputStream, InputStream}
-import java.net.{HttpURLConnection, URI, URL}
+import java.net.{HttpURLConnection, URI, URL, URLEncoder}
 
+import ai.h2o.sparkling.utils.ScalaUtils._
 import com.google.gson.{ExclusionStrategy, FieldAttributes, GsonBuilder}
 import org.apache.commons.io.IOUtils
+import org.apache.spark.expose.Logging
 import org.apache.spark.h2o.H2OConf
 
 import scala.reflect.{ClassTag, classTag}
-import ai.h2o.sparkling.utils.ScalaUtils._
-import org.apache.spark.expose.Logging
 
 trait RestCommunication extends Logging {
 
   /**
-    *
-    * @param endpoint      An address of H2O node with exposed REST endpoint
-    * @param suffix        REST relative path representing a specific call
-    * @param conf          H2O conf object
-    * @param skippedFields The list of field specifications that are skipped during deserialization. The specification
-    *                      consists of the class containing the field and the field name.
-    * @tparam ResultType A type that the result will be deserialized to
-    * @return A deserialized object
-    */
+   *
+   * @param endpoint      An address of H2O node with exposed REST endpoint
+   * @param suffix        REST relative path representing a specific call
+   * @param conf          H2O conf object
+   * @param skippedFields The list of field specifications that are skipped during deserialization. The specification
+   *                      consists of the class containing the field and the field name.
+   * @tparam ResultType A type that the result will be deserialized to
+   * @return A deserialized object
+   */
   protected def query[ResultType: ClassTag](
-      endpoint: URI,
-      suffix: String,
-      conf: H2OConf,
-      skippedFields: Seq[(Class[_], String)] = Seq.empty): ResultType = {
-    request(endpoint, "GET", suffix, conf, skippedFields)
+                                             endpoint: URI,
+                                             suffix: String,
+                                             conf: H2OConf,
+                                             params: Map[String, String] = Map.empty,
+                                             skippedFields: Seq[(Class[_], String)] = Seq.empty): ResultType = {
+    request(endpoint, "GET", suffix, conf, params, skippedFields)
   }
 
 
   /**
-    *
-    * @param endpoint      An address of H2O node with exposed REST endpoint
-    * @param suffix        REST relative path representing a specific call
-    * @param conf          H2O conf object
-    * @param skippedFields The list of field specifications that are skipped during deserialization. The specification
-    *                      consists of the class containing the field and the field name.
-    * @tparam ResultType A type that the result will be deserialized to
-    * @return A deserialized object
-    */
+   *
+   * @param endpoint      An address of H2O node with exposed REST endpoint
+   * @param suffix        REST relative path representing a specific call
+   * @param conf          H2O conf object
+   * @param params        Query parameters
+   * @param skippedFields The list of field specifications that are skipped during deserialization. The specification
+   *                      consists of the class containing the field and the field name.
+   * @tparam ResultType A type that the result will be deserialized to
+   * @return A deserialized object
+   */
   protected def update[ResultType: ClassTag](
-      endpoint: URI,
-      suffix: String,
-      conf: H2OConf,
-      skippedFields: Seq[(Class[_], String)] = Seq.empty): ResultType = {
-    request(endpoint, "POST", suffix, conf, skippedFields)
+                                              endpoint: URI,
+                                              suffix: String,
+                                              conf: H2OConf,
+                                              params: Map[String, String] = Map.empty,
+                                              skippedFields: Seq[(Class[_], String)] = Seq.empty): ResultType = {
+    request(endpoint, "POST", suffix, conf, params, skippedFields)
   }
 
   protected def request[ResultType: ClassTag](
-      endpoint: URI,
-      requestType: String,
-      suffix: String,
-      conf: H2OConf,
-      skippedFields: Seq[(Class[_], String)] = Seq.empty): ResultType = {
-    withResource(readURLContent(endpoint, requestType, suffix, conf)) { response =>
+                                               endpoint: URI,
+                                               requestType: String,
+                                               suffix: String,
+                                               conf: H2OConf,
+                                               params: Map[String, String] = Map.empty,
+                                               skippedFields: Seq[(Class[_], String)] = Seq.empty): ResultType = {
+    withResource(readURLContent(endpoint, requestType, suffix, conf, params)) { response =>
       val content = IOUtils.toString(response)
       deserialize[ResultType](content, skippedFields)
     }
@@ -123,13 +127,23 @@ trait RestCommunication extends Logging {
 
   private def urlToString(url: URL) = s"${url.getHost}:${url.getPort}"
 
-  private def readURLContent(endpoint: URI, requestType: String, suffix: String, conf: H2OConf): InputStream = {
+  private def readURLContent(endpoint: URI, requestType: String, suffix: String, conf: H2OConf, params: Map[String, String] = Map.empty): InputStream = {
     val suffixWithDelimiter = if (suffix.startsWith("/")) suffix else s"/$suffix"
-    val url = endpoint.resolve(suffixWithDelimiter).toURL
+
+    val suffixWithParams = if (params.nonEmpty) {
+      val charset = "UTF-8"
+      val decodedParams = params.map(pair => URLEncoder.encode(s"${pair._1}=${pair._2}", charset)).mkString("&")
+      s"$suffixWithDelimiter?$decodedParams"
+    } else {
+      suffixWithDelimiter
+    }
+
+    val url = endpoint.resolve(suffixWithParams).toURL
     try {
       val connection = url.openConnection().asInstanceOf[HttpURLConnection]
       connection.setRequestMethod(requestType)
       getCredentials(conf).foreach(connection.setRequestProperty("Authorization", _))
+
       val statusCode = retry(3) {
         connection.getResponseCode()
       }
