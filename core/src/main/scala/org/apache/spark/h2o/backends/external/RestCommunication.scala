@@ -132,7 +132,7 @@ trait RestCommunication extends Logging {
 
     val suffixWithParams = if (params.nonEmpty) {
       val charset = "UTF-8"
-      val decodedParams = params.map(pair => URLEncoder.encode(s"${pair._1}=${pair._2}", charset)).mkString("&")
+      val decodedParams = params.map(pair => s"${pair._1}=${URLEncoder.encode(pair._2, charset)}").mkString("&")
       s"$suffixWithDelimiter?$decodedParams"
     } else {
       suffixWithDelimiter
