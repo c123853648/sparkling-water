@@ -44,7 +44,7 @@ trait RestCommunication extends Logging {
                                              endpoint: URI,
                                              suffix: String,
                                              conf: H2OConf,
-                                             params: Map[String, String] = Map.empty,
+                                             params: Map[String, Any] = Map.empty,
                                              skippedFields: Seq[(Class[_], String)] = Seq.empty): ResultType = {
     request(endpoint, "GET", suffix, conf, params, skippedFields)
   }
@@ -65,7 +65,7 @@ trait RestCommunication extends Logging {
                                               endpoint: URI,
                                               suffix: String,
                                               conf: H2OConf,
-                                              params: Map[String, String] = Map.empty,
+                                              params: Map[String, Any] = Map.empty,
                                               skippedFields: Seq[(Class[_], String)] = Seq.empty): ResultType = {
     request(endpoint, "POST", suffix, conf, params, skippedFields)
   }
@@ -75,7 +75,7 @@ trait RestCommunication extends Logging {
                                                requestType: String,
                                                suffix: String,
                                                conf: H2OConf,
-                                               params: Map[String, String] = Map.empty,
+                                               params: Map[String, Any] = Map.empty,
                                                skippedFields: Seq[(Class[_], String)] = Seq.empty): ResultType = {
     withResource(readURLContent(endpoint, requestType, suffix, conf, params)) { response =>
       val content = IOUtils.toString(response)
@@ -126,14 +126,37 @@ trait RestCommunication extends Logging {
   }
 
   private def urlToString(url: URL) = s"${url.getHost}:${url.getPort}"
+  
 
-  private def readURLContent(endpoint: URI, requestType: String, suffix: String, conf: H2OConf, params: Map[String, String] = Map.empty): InputStream = {
+  private def decodeSimpleParam(value: Any): String = {
+    val charset = "UTF-8"
+    value match {
+      case v : String => URLEncoder.encode(v, charset)
+      case v: Int => v.toString
+      case v: Double => v.toString
+      case unknown => throw new RuntimeException(s"Following class can't be passed as param ${unknown.getClass}")
+    }
+  }
+
+  private def decodeArray(arr: Array[_]): String = {
+    java.util.Arrays.toString(arr.map(decodeSimpleParam).map(_.asInstanceOf[AnyRef]))
+  }
+  
+  private def decodeParams(params: Map[String, Any] = Map.empty): String = {
+    params.map { case (key, value) =>
+      val encodedValue = value match {
+        case v: Array[_] => decodeArray(v)
+        case v: Any => decodeSimpleParam(v)
+      }
+      s"$key=$encodedValue"
+    }.mkString("&")
+  }
+
+  private def readURLContent(endpoint: URI, requestType: String, suffix: String, conf: H2OConf, params: Map[String, Any] = Map.empty): InputStream = {
     val suffixWithDelimiter = if (suffix.startsWith("/")) suffix else s"/$suffix"
 
     val suffixWithParams = if (params.nonEmpty) {
-      val charset = "UTF-8"
-      val decodedParams = params.map(pair => s"${pair._1}=${URLEncoder.encode(pair._2, charset)}").mkString("&")
-      s"$suffixWithDelimiter?$decodedParams"
+      s"$suffixWithDelimiter?${decodeParams(params)}"
     } else {
       suffixWithDelimiter
     }

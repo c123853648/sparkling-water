@@ -50,7 +50,7 @@ trait RestApiUtils extends RestCommunication {
   def splitFrameToTrainAndValidationFrames(conf: H2OConf, frameId: String, splitRatio: Double): Array[String] = {
     val endpoint = getClusterEndpoint(conf)
     val params = Map(
-      "ratios" -> java.util.Arrays.toString(Array(splitRatio)),
+      "ratios" -> Array(splitRatio),
       "dataset" -> frameId
     )
     val splitFrameV3 = update[SplitFrameV3](endpoint, "3/SplitFrame", conf, params)
