@@ -17,7 +17,7 @@
 
 package org.apache.spark.h2o.backends.external
 
-import java.io.{BufferedOutputStream, File, FileOutputStream, InputStream}
+import java.io.{BufferedOutputStream, DataOutputStream, File, FileOutputStream, InputStream}
 import java.net.{HttpURLConnection, URI, URL, URLEncoder}
 
 import ai.h2o.sparkling.utils.ScalaUtils._
@@ -126,12 +126,12 @@ trait RestCommunication extends Logging {
   }
 
   private def urlToString(url: URL) = s"${url.getHost}:${url.getPort}"
-  
+
 
   private def decodeSimpleParam(value: Any): String = {
     val charset = "UTF-8"
     value match {
-      case v : String => URLEncoder.encode(v, charset)
+      case v: String => URLEncoder.encode(v, charset)
       case v: Int => v.toString
       case v: Double => v.toString
       case unknown => throw new RuntimeException(s"Following class can't be passed as param ${unknown.getClass}")
@@ -141,7 +141,7 @@ trait RestCommunication extends Logging {
   private def decodeArray(arr: Array[_]): String = {
     java.util.Arrays.toString(arr.map(decodeSimpleParam).map(_.asInstanceOf[AnyRef]))
   }
-  
+
   private def decodeParams(params: Map[String, Any] = Map.empty): String = {
     params.map { case (key, value) =>
       val encodedValue = value match {
@@ -161,14 +161,19 @@ trait RestCommunication extends Logging {
       suffixWithDelimiter
     }
 
-    if (params.nonEmpty && (requestType == "POST" || requestType == "PUT")) {
-
-    }
-
     val url = endpoint.resolve(suffixWithParams).toURL
     try {
       val connection = url.openConnection().asInstanceOf[HttpURLConnection]
       connection.setRequestMethod(requestType)
+      if (params.nonEmpty && (requestType == "POST" || requestType == "PUT")) {
+        val paramsAsBytes = decodeParams(params).getBytes("UTF-8")
+        connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+        connection.setRequestProperty("charset", "UTF-8")
+        connection.setRequestProperty("Content-Length", Integer.toString(paramsAsBytes.length))
+        withResource(new DataOutputStream(connection.getOutputStream())) { writer =>
+          writer.write(paramsAsBytes)
+        }
+      }
       getCredentials(conf).foreach(connection.setRequestProperty("Authorization", _))
 
       val statusCode = retry(3) {
