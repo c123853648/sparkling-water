@@ -38,5 +38,5 @@ class FrameRestApiTestSuite extends FunSuite with SharedH2OTestContext {
   test("splitFrameToTrainAndValidationFrames") {
 
   }
-  
+
 }

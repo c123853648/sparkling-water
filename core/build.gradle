@@ -177,7 +177,7 @@ task createSparklingWaterVersionFile {
 test.dependsOn testJar
 
 test {
-    if (detectBackendClusterMode() == "external") {
+    if (detectBackendClusterMode() == "internal") {
         exclude 'ai/h2o/sparkling/FrameRestApiTestSuite.class'
     }
 }
