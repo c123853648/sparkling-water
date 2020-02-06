@@ -19,7 +19,7 @@ package org.apache.spark.h2o.backends.external
 
 import java.io.File
 import java.net.URI
-import java.text.SimpleDateFormat
+import java.text.{MessageFormat, SimpleDateFormat}
 import java.util.Date
 
 import ai.h2o.sparkling.frame.{H2OChunk, H2OColumn, H2OColumnType, H2OFrame}
@@ -43,8 +43,14 @@ trait RestApiUtils extends RestCommunication {
   }
 
   def convertColumnsToCategorical(conf: H2OConf, frameId: String, columns: Array[String]): Unit = {
-    //TODO
-    // Use rapids REST API endpooint to execute as.factor
+    val endpoint = getClusterEndpoint(conf)
+    columns.foldLeft(frameId){ case (frameId, name) =>
+      val params = Map(
+        "ast" -> MessageFormat.format("(assign {0} (:= {0} (as.factor (cols_py {0} {1})) {1} []))", frameId, name)
+      )
+      val rapidsFrameV3 = update[RapidsFrameV3](endpoint, "99/Rapids", conf, params)
+      rapidsFrameV3.key.toString
+    }
   }
 
   def splitFrameToTrainAndValidationFrames(conf: H2OConf, frameId: String, splitRatio: Double): Array[String] = {
